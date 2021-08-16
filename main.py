@@ -7,10 +7,12 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import relationship
 from flask_login import UserMixin, login_user, LoginManager, login_required, current_user, logout_user
-from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm
+from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm, ContactForm
 from flask_gravatar import Gravatar
 from functools import wraps
+from smtplib import SMTP
 import os
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY", "8BYkEfBA6O6donzWlSihBXox7C0sKR6b")
@@ -21,6 +23,10 @@ Bootstrap(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL", "sqlite:///blog.db")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+FROM_EMAIL = os.environ.get("FROM_EMAIL")
+FROM_PASSWORD = os.environ.get("FROM_PASSWORD")
+TO_EMAIL = os.environ.get("TO_EMAIL")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -157,9 +163,17 @@ def about():
     return render_template("about.html", current_user=current_user)
 
 
-@app.route("/contact")
+@app.route("/contact", methods=["GET", "POST"])
 def contact():
-    return render_template("contact.html", current_user=current_user)
+    form = ContactForm()
+    if form.validate_on_submit():
+        msg = f"Subject: New Message from Lucas' Blog\n\nName: {form.name.data}\nEmail: {form.email.data}\nPhone Number: {form.phone.data}\nMessage: {form.message.data}"
+        with SMTP("smtp.gmail.com", port=587) as connection:
+            connection.starttls()
+            connection.login(FROM_EMAIL, FROM_PASSWORD)
+            connection.sendmail(FROM_EMAIL, TO_EMAIL, msg=msg)
+        return redirect(url_for("get_all_posts"))
+    return render_template("contact.html", current_user=current_user, form=form)
 
 
 @app.route("/new-post", methods=["GET", "POST"])
